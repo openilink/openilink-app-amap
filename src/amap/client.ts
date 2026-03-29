@@ -56,12 +56,13 @@ export class AmapClient {
    * @param types - POI 类型编码（可选）
    * @param page - 页码，默认 1
    */
-  async searchPOI(keywords: string, city?: string, types?: string, page?: number): Promise<any> {
+  async searchPOI(keywords: string, city?: string, types?: string, page?: number, pageSize: number = 20): Promise<any> {
     const params: Record<string, string> = { keywords };
     if (city) params.city = city;
     if (types) params.types = types;
     if (page) params.page = String(page);
-    params.offset = "10";
+    // 每页返回条数，由调用方传入，默认 20
+    params.offset = String(pageSize);
     return this.request("/v3/place/text", params);
   }
 
@@ -71,11 +72,12 @@ export class AmapClient {
    * @param keywords - 搜索关键词（可选）
    * @param radius - 搜索半径，单位米，默认 1000
    */
-  async searchAround(location: string, keywords?: string, radius?: number): Promise<any> {
+  async searchAround(location: string, keywords?: string, radius?: number, pageSize: number = 20): Promise<any> {
     const params: Record<string, string> = { location };
     if (keywords) params.keywords = keywords;
     params.radius = String(radius ?? 1000);
-    params.offset = "10";
+    // 每页返回条数，由调用方传入，默认 20
+    params.offset = String(pageSize);
     return this.request("/v3/place/around", params);
   }
 
