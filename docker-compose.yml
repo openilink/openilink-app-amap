@@ -1,18 +1,15 @@
-version: "3.8"
-
 services:
-  amap:
+  amap-app:
     build: .
     container_name: openilink-app-amap
     restart: unless-stopped
-    ports:
-      - "8090:8090"
     environment:
-      - HUB_URL=${HUB_URL}
-      - BASE_URL=${BASE_URL}
-      - AMAP_KEY=${AMAP_KEY}
-      - DB_PATH=/data/amap.db
-      - PORT=8090
+      PORT: "${PORT:-8090}"
+      HUB_URL: "${HUB_URL}"
+      BASE_URL: "${BASE_URL}"
+      DB_PATH: "/data/amap.db"
+      AMAP_KEY: "${AMAP_KEY:-}"
+      CONFIG_ENCRYPT_KEY: "${CONFIG_ENCRYPT_KEY}"
     volumes:
       - amap-data:/data
 
