@@ -178,9 +178,20 @@ export async function handleOAuthCallback(
 
     console.log("[oauth] 安装成功, installation_id:", result.installation_id);
 
+    // 安装后从 Hub 拉取用户配置并加密存储到本地
+    const hubClient = new HubClient(pkceEntry.hub, result.app_token);
+    try {
+      const userConfig = await hubClient.fetchConfig();
+      if (Object.keys(userConfig).length > 0) {
+        opts.store.saveConfig(installation.id, userConfig);
+        console.log("[oauth] 用户配置已加密存储到本地");
+      }
+    } catch (err) {
+      console.error("[oauth] 拉取用户配置失败:", err);
+    }
+
     // OAuth 成功后同步工具定义到 Hub
     if (opts.tools && opts.tools.length > 0) {
-      const hubClient = new HubClient(pkceEntry.hub, result.app_token);
       hubClient.syncTools(opts.tools).catch((err) => {
         console.error("[oauth] 同步工具定义失败:", err);
       });

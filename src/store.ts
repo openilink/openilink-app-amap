@@ -6,6 +6,7 @@ import Database from "better-sqlite3";
 import path from "node:path";
 import fs from "node:fs";
 import type { Installation } from "./hub/types.js";
+import { encryptConfig, decryptConfig } from "./utils/config-crypto.js";
 
 /** 数据库存储管理器 */
 export class Store {
@@ -41,6 +42,13 @@ export class Store {
         created_at    TEXT NOT NULL DEFAULT (datetime('now'))
       );
     `);
+
+    // 兼容旧库：为 installations 表添加 encrypted_config 列
+    try {
+      this.db.exec(`ALTER TABLE installations ADD COLUMN encrypted_config TEXT NOT NULL DEFAULT ''`);
+    } catch {
+      // 列已存在则忽略
+    }
   }
 
   // ─── Installation CRUD ────────────────────────────────────
@@ -98,6 +106,29 @@ export class Store {
       webhookSecret: row.webhook_secret,
       createdAt: row.created_at,
     };
+  }
+
+  // ─── 用户配置（加密存储）────────────────────────────────
+
+  /** 保存用户配置（AES-256-GCM 加密后存储） */
+  saveConfig(installationId: string, config: Record<string, string>): void {
+    const encrypted = encryptConfig(JSON.stringify(config));
+    this.db
+      .prepare(`UPDATE installations SET encrypted_config = ? WHERE id = ?`)
+      .run(encrypted, installationId);
+  }
+
+  /** 读取用户配置（从本地解密） */
+  getConfig(installationId: string): Record<string, string> {
+    const row = this.db
+      .prepare("SELECT encrypted_config FROM installations WHERE id = ?")
+      .get(installationId) as { encrypted_config?: string } | undefined;
+    if (!row?.encrypted_config) return {};
+    try {
+      return JSON.parse(decryptConfig(row.encrypted_config)) as Record<string, string>;
+    } catch {
+      return {};
+    }
   }
 
   /** 关闭数据库连接 */

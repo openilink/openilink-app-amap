@@ -45,11 +45,22 @@ function getHubClient(installation: Installation): HubClient {
 
 /**
  * 处理 command 事件（同步/异步超时由 webhook 层控制）
+ * 从本地加密存储读取 per-installation 配置，动态创建对应的 AmapClient
  * 返回工具执行结果文本，null 表示无需回复
  */
-async function onCommand(event: HubEvent, _installation: Installation): Promise<string | null> {
+async function onCommand(event: HubEvent, installation: Installation): Promise<string | null> {
   console.log(`[event] 收到 command 事件: id=${event.event?.id}, trace=${event.trace_id}`);
-  const result = await router.handleCommand(event);
+
+  // 从加密存储读取 per-installation 配置
+  const localConfig = store.getConfig(installation.id);
+  const key = localConfig.amap_key || config.amapKey;
+
+  // 动态创建对应 installation 的 AmapClient 和 Router
+  const instAmapClient = new AmapClient(key);
+  const instTools = collectAllTools(instAmapClient);
+  const instRouter = new Router({ definitions: instTools.definitions, handlers: instTools.handlers, store });
+
+  const result = await instRouter.handleCommand(event);
   return result ?? null;
 }
 
@@ -99,8 +110,16 @@ async function requestHandler(req: IncomingMessage, res: ServerResponse): Promis
         createdAt: new Date().toISOString(),
       });
       console.log("[oauth] 模式2安装成功, installation_id:", data.installation_id);
+      // 安装后从 Hub 拉取用户配置并加密存储
+      const mode2HubClient = new HubClient(data.hub_url || config.hubUrl, data.app_token);
+      mode2HubClient.fetchConfig().then((userConfig) => {
+        if (Object.keys(userConfig).length > 0) {
+          store.saveConfig(data.installation_id, userConfig);
+          console.log("[oauth] 模式2用户配置已加密存储");
+        }
+      }).catch((err) => console.error("[oauth] 模式2拉取配置失败:", err));
       // 异步同步工具定义到 Hub
-      new HubClient(data.hub_url || config.hubUrl, data.app_token)
+      mode2HubClient
         .syncTools(definitions)
         .catch((err) => console.error("[oauth] 模式2同步工具失败:", err));
       res.writeHead(200, { "Content-Type": "application/json" });
