@@ -36,5 +36,5 @@ export const manifest: AppManifest = {
     },
     required: ["amap_key"],
   },
-  guide: "## 高德地图安装指南\n### 第 1 步\n访问 [lbs.amap.com](https://lbs.amap.com/dev/key) → 创建应用 → 添加 Key（服务平台选 Web 服务）\n### 第 2 步\n填写 Key 并安装",
+  guide: "## 高德地图安装指南\n### 第 1 步\n访问 [lbs.amap.com](https://lbs.amap.com/dev/key) → 创建应用 → 添加 Key（服务平台选 Web 服务）\n### 第 2 步\n填写 Key 并安装\n\n安装后可通过 /settings 页面随时修改配置。",
 };

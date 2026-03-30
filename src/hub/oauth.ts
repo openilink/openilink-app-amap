@@ -1,12 +1,10 @@
 /**
- * OAuth PKCE 授权流程处理
+ * OAuth PKCE 授权流程处理（含 setup 配置页面）
  *
  * 流程：
- * 1. 用户访问 /oauth/setup?hub=...&app_id=...&bot_id=...&state=...&return_url=...
- *    → 生成 PKCE 码对，重定向到 Hub 授权页 /api/apps/{appId}/oauth/authorize
- * 2. Hub 回调 /oauth/redirect?code=xxx&state=xxx
- *    → 用 code + code_verifier 向 /api/apps/{appId}/oauth/exchange 换取凭证
- * 3. 将安装信息持久化到 Store
+ * 1. GET  /oauth/setup → 显示配置表单 HTML（填写高德 Key）
+ * 2. POST /oauth/setup → 提交表单，生成 PKCE 并重定向到 Hub 授权页
+ * 3. GET  /oauth/redirect → Hub 回调，用 code + code_verifier 换取凭证并保存
  * 4. 安装成功后同步工具定义到 Hub
  * 5. 回调完成后重定向到 returnUrl
  */
@@ -18,13 +16,25 @@ import type { OAuthExchangeResult, Installation, ToolDefinition } from "./types.
 import { HubClient } from "./client.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
-/** PKCE 缓存条目 */
+/** 读取请求体 */
+function readBody(req: IncomingMessage): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+}
+
+/** PKCE 缓存条目（含用户填写的配置） */
 interface PKCEEntry {
   verifier: string;
   hub: string;
   appId: string;
   botId: string;
   returnUrl: string;
+  /** 用户在 setup 页面填写的凭证 */
+  userConfig?: Record<string, string>;
   expiresAt: number;
 }
 
@@ -53,14 +63,16 @@ export interface OAuthOptions {
 }
 
 /**
- * 处理 OAuth 安装流程第一步：生成 PKCE 并重定向到 Hub 授权页
- * 路由: GET /oauth/setup?hub=...&app_id=...&bot_id=...&state=...&return_url=...
+ * 处理 OAuth 安装流程第一步：
+ * GET  → 显示配置表单 HTML，让用户填写高德 Key
+ * POST → 读取表单数据，生成 PKCE 并重定向到 Hub 授权页
+ * 路由: GET/POST /oauth/setup
  */
-export function handleOAuthStart(
+export async function handleOAuthStart(
   req: IncomingMessage,
   res: ServerResponse,
   opts: OAuthOptions,
-): void {
+): Promise<void> {
   const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
   const params = url.searchParams;
 
@@ -70,41 +82,94 @@ export function handleOAuthStart(
   const state = params.get("state") ?? "";
   const returnUrl = params.get("return_url") ?? "";
 
-  if (!hub || !appId || !botId || !state) {
-    res.writeHead(400, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "缺少必填参数: hub, app_id, bot_id, state" }));
+  // POST 请求 — 用户提交了配置表单
+  if (req.method === "POST") {
+    const body = await readBody(req);
+    const formData = new URLSearchParams(body.toString());
+    const amapKey = formData.get("amap_key") || "";
+
+    if (!hub || !appId || !botId) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "缺少必填参数: hub, app_id, bot_id" }));
+      return;
+    }
+
+    // 清理过期缓存
+    cleanExpired();
+
+    // 生成 PKCE
+    const { verifier, challenge } = generatePKCE();
+    const localState = state || crypto.randomUUID();
+
+    // 缓存 PKCE + 用户填的 Key
+    pkceCache.set(localState, {
+      verifier,
+      hub,
+      appId,
+      botId,
+      returnUrl,
+      userConfig: { amap_key: amapKey },
+      expiresAt: Date.now() + PKCE_TTL_MS,
+    });
+
+    // 构建 Hub 授权 URL: /api/apps/{appId}/oauth/authorize
+    const redirectUri = `${opts.config.baseUrl}/oauth/redirect`;
+    const authUrl = new URL(`${hub}/api/apps/${appId}/oauth/authorize`);
+    authUrl.searchParams.set("app_id", appId);
+    authUrl.searchParams.set("bot_id", botId);
+    authUrl.searchParams.set("state", localState);
+    authUrl.searchParams.set("redirect_uri", redirectUri);
+    authUrl.searchParams.set("code_challenge", challenge);
+    if (returnUrl) {
+      authUrl.searchParams.set("return_url", returnUrl);
+    }
+
+    // 重定向到 Hub 授权页
+    res.writeHead(302, { Location: authUrl.toString() });
+    res.end();
     return;
   }
 
-  // 清理过期缓存
-  cleanExpired();
+  // GET 请求 — 显示配置表单 HTML
+  const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>高德地图 — 配置</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    .card { background: white; border-radius: 12px; padding: 32px; max-width: 420px; width: 100%; box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .desc { color: #666; font-size: 14px; margin-bottom: 24px; }
+    label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px; color: #333; }
+    input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; margin-bottom: 16px; }
+    input:focus { outline: none; border-color: #3370ff; }
+    .required::after { content: " *"; color: red; }
+    button { width: 100%; padding: 12px; background: #3370ff; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; }
+    button:hover { background: #2860e0; }
+    .hint { font-size: 12px; color: #999; margin-top: -12px; margin-bottom: 16px; }
+    a { color: #3370ff; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>高德地图</h1>
+    <p class="desc">请填写您的高德 Key，用于连接高德开放平台 API</p>
+    <form method="POST" action="/oauth/setup?hub=${encodeURIComponent(hub)}&app_id=${encodeURIComponent(appId)}&bot_id=${encodeURIComponent(botId)}&state=${encodeURIComponent(state)}&return_url=${encodeURIComponent(returnUrl)}">
+      <label class="required">高德 Key</label>
+      <input name="amap_key" type="password" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" required />
+      <p class="hint">在 <a href="https://lbs.amap.com/dev/key" target="_blank">高德开放平台</a> 创建应用后获取 Web 服务 Key</p>
 
-  // 生成 PKCE
-  const { verifier, challenge } = generatePKCE();
-  pkceCache.set(state, {
-    verifier,
-    hub,
-    appId,
-    botId,
-    returnUrl,
-    expiresAt: Date.now() + PKCE_TTL_MS,
-  });
+      <button type="submit">确认并安装</button>
+    </form>
+  </div>
+</body>
+</html>`;
 
-  // 构建 Hub 授权 URL: /api/apps/{appId}/oauth/authorize
-  const redirectUri = `${opts.config.baseUrl}/oauth/redirect`;
-  const authUrl = new URL(`${hub}/api/apps/${appId}/oauth/authorize`);
-  authUrl.searchParams.set("app_id", appId);
-  authUrl.searchParams.set("bot_id", botId);
-  authUrl.searchParams.set("state", state);
-  authUrl.searchParams.set("redirect_uri", redirectUri);
-  authUrl.searchParams.set("code_challenge", challenge);
-  if (returnUrl) {
-    authUrl.searchParams.set("return_url", returnUrl);
-  }
-
-  // 重定向到 Hub 授权页
-  res.writeHead(302, { Location: authUrl.toString() });
-  res.end();
+  res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+  res.end(html);
 }
 
 /**
@@ -142,15 +207,17 @@ export async function handleOAuthCallback(
   }
   pkceCache.delete(state);
 
+  const { verifier, hub, appId, returnUrl, userConfig } = pkceEntry;
+
   try {
     // 向 Hub 交换凭证: POST /api/apps/{appId}/oauth/exchange
-    const exchangeUrl = `${pkceEntry.hub}/api/apps/${pkceEntry.appId}/oauth/exchange`;
+    const exchangeUrl = `${hub}/api/apps/${appId}/oauth/exchange`;
     const exchangeRes = await fetch(exchangeUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         code,
-        code_verifier: pkceEntry.verifier,
+        code_verifier: verifier,
       }),
     });
 
@@ -167,8 +234,8 @@ export async function handleOAuthCallback(
     // 保存安装信息
     const installation: Installation = {
       id: result.installation_id,
-      hubUrl: pkceEntry.hub,
-      appId: pkceEntry.appId,
+      hubUrl: hub,
+      appId,
       botId: result.bot_id,
       appToken: result.app_token,
       webhookSecret: result.webhook_secret,
@@ -178,12 +245,18 @@ export async function handleOAuthCallback(
 
     console.log("[oauth] 安装成功, installation_id:", result.installation_id);
 
+    // 将用户在 setup 页面填写的配置加密存储到本地
+    if (userConfig && Object.values(userConfig).some((v) => v)) {
+      opts.store.saveConfig(result.installation_id, userConfig);
+      console.log("[oauth] 用户配置已加密存储");
+    }
+
     // 安装后从 Hub 拉取用户配置并加密存储到本地
-    const hubClient = new HubClient(pkceEntry.hub, result.app_token);
+    const hubClient = new HubClient(hub, result.app_token);
     try {
-      const userConfig = await hubClient.fetchConfig();
-      if (Object.keys(userConfig).length > 0) {
-        opts.store.saveConfig(installation.id, userConfig);
+      const remoteConfig = await hubClient.fetchConfig();
+      if (Object.keys(remoteConfig).length > 0) {
+        opts.store.saveConfig(installation.id, { ...userConfig, ...remoteConfig });
         console.log("[oauth] 用户配置已加密存储到本地");
       }
     } catch (err) {
@@ -198,12 +271,22 @@ export async function handleOAuthCallback(
     }
 
     // 回调完成后重定向到 returnUrl
-    if (pkceEntry.returnUrl) {
-      res.writeHead(302, { Location: pkceEntry.returnUrl });
+    if (returnUrl) {
+      res.writeHead(302, { Location: returnUrl });
       res.end();
     } else {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok: true, installation_id: result.installation_id }));
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(`
+        <!DOCTYPE html>
+        <html>
+          <head><meta charset="utf-8"><title>安装成功</title></head>
+          <body>
+            <h1>高德地图 App 安装成功!</h1>
+            <p>Installation ID: ${result.installation_id}</p>
+            <p>你可以关闭此页面。</p>
+          </body>
+        </html>
+      `);
     }
   } catch (err) {
     console.error("[oauth] 凭证交换异常:", err);

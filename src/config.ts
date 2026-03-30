@@ -12,7 +12,7 @@ export interface Config {
   baseUrl: string;
   /** SQLite 数据库文件路径，默认 "data/amap.db" */
   dbPath: string;
-  /** 高德地图 Web 服务 API Key，必填 */
+  /** 高德地图 Web 服务 API Key（可选，云端托管模式下由用户在安装时填写） */
   amapKey: string;
 }
 
@@ -26,8 +26,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     amapKey: env.AMAP_KEY?.trim() || "",
   };
 
-  // 校验必填项
-  const required: (keyof Config)[] = ["hubUrl", "baseUrl", "amapKey"];
+  // hubUrl 和 baseUrl 是必填项，amapKey 在云端托管模式下由用户安装时填写
+  const required: (keyof Config)[] = ["hubUrl", "baseUrl"];
   for (const key of required) {
     if (!config[key]) {
       throw new Error(`缺少必填配置: ${key}（对应环境变量: ${toEnvName(key)}）`);

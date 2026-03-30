@@ -17,6 +17,7 @@ import { collectAllTools } from "./tools/index.js";
 import { Router } from "./router.js";
 import { handleWebhook } from "./hub/webhook.js";
 import { handleOAuthStart, handleOAuthCallback } from "./hub/oauth.js";
+import { handleSettingsPage, handleSettingsVerify, handleSettingsSave } from "./hub/settings.js";
 import { manifest } from "./hub/manifest.js";
 import { HubClient } from "./hub/client.js";
 import type { HubEvent, Installation } from "./hub/types.js";
@@ -79,9 +80,27 @@ async function requestHandler(req: IncomingMessage, res: ServerResponse): Promis
       return;
     }
 
-    // GET /oauth/setup — 启动 OAuth 安装流程
-    if (pathname === "/oauth/setup" && req.method === "GET") {
-      handleOAuthStart(req, res, oauthOpts);
+    // GET/POST /oauth/setup — OAuth 安装流程（GET 显示表单 / POST 提交表单）
+    if (pathname === "/oauth/setup") {
+      await handleOAuthStart(req, res, oauthOpts);
+      return;
+    }
+
+    // GET /settings — 设置页面
+    if (pathname === "/settings" && req.method === "GET") {
+      handleSettingsPage(req, res);
+      return;
+    }
+
+    // POST /settings/verify — 验证身份
+    if (pathname === "/settings/verify" && req.method === "POST") {
+      await handleSettingsVerify(req, res, config, store);
+      return;
+    }
+
+    // POST /settings/save — 保存配置
+    if (pathname === "/settings/save" && req.method === "POST") {
+      await handleSettingsSave(req, res, config, store);
       return;
     }
 
