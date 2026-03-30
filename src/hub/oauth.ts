@@ -151,6 +151,11 @@ export async function handleOAuthStart(
     button:hover { background: #2860e0; }
     .hint { font-size: 12px; color: #999; margin-top: -12px; margin-bottom: 16px; }
     a { color: #3370ff; }
+    .security-notice { background: #f0f7ff; border: 1px solid #d0e3ff; border-radius: 8px; padding: 12px 16px; margin: 16px 0; font-size: 13px; color: #444; }
+    .security-notice p { font-weight: 600; margin-bottom: 6px; }
+    .security-notice ul { padding-left: 20px; margin: 0; }
+    .security-notice li { margin-bottom: 4px; }
+    .security-notice a { color: #3370ff; }
   </style>
 </head>
 <body>
@@ -162,6 +167,15 @@ export async function handleOAuthStart(
       <input name="amap_key" type="password" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" required />
       <p class="hint">在 <a href="https://lbs.amap.com/dev/key" target="_blank">高德开放平台</a> 创建应用后获取 Web 服务 Key</p>
 
+      <div class="security-notice">
+        <p>🔒 安全说明</p>
+        <ul>
+          <li>您的凭证将使用 AES-256-GCM 加密后存储在 App 服务器本地，不会明文保存</li>
+          <li>凭证仅用于调用对应的第三方服务，不会用于任何其他用途</li>
+          <li>OpeniLink Hub 平台不会接触或存储您的第三方凭证</li>
+          <li>如需更高安全性，建议<a href="https://github.com/openilink/openilink-app-amap">自行部署</a>本 App</li>
+        </ul>
+      </div>
       <button type="submit">确认并安装</button>
     </form>
   </div>
