@@ -10,7 +10,11 @@ const definitions: ToolDefinition[] = [
     description: "IP 定位 — 根据 IP 地址定位所在城市",
     command: "ip_location",
     parameters: {
-      ip: { type: "string", description: "IP 地址，不填则定位当前请求的 IP" },
+      type: "object",
+      properties: {
+        ip: { type: "string", description: "IP 地址，不填则定位当前请求的 IP" },
+      },
+      required: [],
     },
   },
   {
@@ -18,9 +22,13 @@ const definitions: ToolDefinition[] = [
     description: "测量距离 — 计算两点之间的距离",
     command: "measure_distance",
     parameters: {
-      origin: { type: "string", description: "起点坐标，格式: 经度,纬度", required: true },
-      destination: { type: "string", description: "终点坐标，格式: 经度,纬度", required: true },
-      type: { type: "string", description: "距离类型：driving（驾车）或 walking（步行/直线），默认 driving", enum: ["driving", "walking"] },
+      type: "object",
+      properties: {
+        origin: { type: "string", description: "起点坐标，格式: 经度,纬度" },
+        destination: { type: "string", description: "终点坐标，格式: 经度,纬度" },
+        type: { type: "string", description: "距离类型：driving（驾车）或 walking（步行/直线），默认 driving", enum: ["driving", "walking"] },
+      },
+      required: ["origin", "destination"],
     },
   },
 ];

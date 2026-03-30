@@ -10,9 +10,13 @@ const definitions: ToolDefinition[] = [
     description: "搜索地点 — 根据关键词搜索 POI（兴趣点）",
     command: "search_poi",
     parameters: {
-      keywords: { type: "string", description: '搜索关键词，如"火锅"、"加油站"', required: true },
-      city: { type: "string", description: '城市名，如"北京"，限定搜索范围' },
-      count: { type: "number", description: "返回数量，默认 10" },
+      type: "object",
+      properties: {
+        keywords: { type: "string", description: '搜索关键词，如"火锅"、"加油站"' },
+        city: { type: "string", description: '城市名，如"北京"，限定搜索范围' },
+        count: { type: "number", description: "返回数量，默认 10" },
+      },
+      required: ["keywords"],
     },
   },
   {
@@ -20,9 +24,13 @@ const definitions: ToolDefinition[] = [
     description: "周边搜索 — 搜索指定坐标附近的地点",
     command: "search_around",
     parameters: {
-      location: { type: "string", description: '中心点坐标，格式: 经度,纬度', required: true },
-      keywords: { type: "string", description: '搜索关键词，如"餐厅"' },
-      radius: { type: "number", description: "搜索半径，单位米，默认 1000" },
+      type: "object",
+      properties: {
+        location: { type: "string", description: '中心点坐标，格式: 经度,纬度' },
+        keywords: { type: "string", description: '搜索关键词，如"餐厅"' },
+        radius: { type: "number", description: "搜索半径，单位米，默认 1000" },
+      },
+      required: ["location"],
     },
   },
 ];

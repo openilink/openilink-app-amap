@@ -10,8 +10,12 @@ const definitions: ToolDefinition[] = [
     description: "地址转坐标 — 将结构化地址转换为经纬度坐标",
     command: "geocode",
     parameters: {
-      address: { type: "string", description: '结构化地址，如"北京市朝阳区阜通东大街6号"', required: true },
-      city: { type: "string", description: '城市名，如"北京"，可提高解析精度' },
+      type: "object",
+      properties: {
+        address: { type: "string", description: '结构化地址，如"北京市朝阳区阜通东大街6号"' },
+        city: { type: "string", description: '城市名，如"北京"，可提高解析精度' },
+      },
+      required: ["address"],
     },
   },
   {
@@ -19,7 +23,11 @@ const definitions: ToolDefinition[] = [
     description: "坐标转地址 — 将经纬度坐标转换为结构化地址",
     command: "reverse_geocode",
     parameters: {
-      location: { type: "string", description: '经纬度坐标，格式: 经度,纬度，如 116.397428,39.90923', required: true },
+      type: "object",
+      properties: {
+        location: { type: "string", description: '经纬度坐标，格式: 经度,纬度，如 116.397428,39.90923' },
+      },
+      required: ["location"],
     },
   },
 ];

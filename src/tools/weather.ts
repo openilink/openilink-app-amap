@@ -10,7 +10,11 @@ const definitions: ToolDefinition[] = [
     description: "天气查询 — 查询指定城市的实况天气和未来预报",
     command: "get_weather",
     parameters: {
-      city: { type: "string", description: "城市名称或 adcode 编码", required: true },
+      type: "object",
+      properties: {
+        city: { type: "string", description: "城市名称或 adcode 编码" },
+      },
+      required: ["city"],
     },
   },
 ];

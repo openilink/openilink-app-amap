@@ -10,8 +10,12 @@ const definitions: ToolDefinition[] = [
     description: "驾车路线规划 — 查询两点之间的驾车路线",
     command: "driving_route",
     parameters: {
-      origin: { type: "string", description: "起点坐标，格式: 经度,纬度", required: true },
-      destination: { type: "string", description: "终点坐标，格式: 经度,纬度", required: true },
+      type: "object",
+      properties: {
+        origin: { type: "string", description: "起点坐标，格式: 经度,纬度" },
+        destination: { type: "string", description: "终点坐标，格式: 经度,纬度" },
+      },
+      required: ["origin", "destination"],
     },
   },
   {
@@ -19,8 +23,12 @@ const definitions: ToolDefinition[] = [
     description: "步行路线规划 — 查询两点之间的步行路线",
     command: "walking_route",
     parameters: {
-      origin: { type: "string", description: "起点坐标，格式: 经度,纬度", required: true },
-      destination: { type: "string", description: "终点坐标，格式: 经度,纬度", required: true },
+      type: "object",
+      properties: {
+        origin: { type: "string", description: "起点坐标，格式: 经度,纬度" },
+        destination: { type: "string", description: "终点坐标，格式: 经度,纬度" },
+      },
+      required: ["origin", "destination"],
     },
   },
   {
@@ -28,9 +36,13 @@ const definitions: ToolDefinition[] = [
     description: "公交路线规划 — 查询两点之间的公交/地铁路线",
     command: "transit_route",
     parameters: {
-      origin: { type: "string", description: "起点坐标，格式: 经度,纬度", required: true },
-      destination: { type: "string", description: "终点坐标，格式: 经度,纬度", required: true },
-      city: { type: "string", description: "城市名或城市编码", required: true },
+      type: "object",
+      properties: {
+        origin: { type: "string", description: "起点坐标，格式: 经度,纬度" },
+        destination: { type: "string", description: "终点坐标，格式: 经度,纬度" },
+        city: { type: "string", description: "城市名或城市编码" },
+      },
+      required: ["origin", "destination", "city"],
     },
   },
 ];
